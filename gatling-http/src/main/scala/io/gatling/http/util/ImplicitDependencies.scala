@@ -17,8 +17,8 @@
 package io.gatling.http.util
 
 import java.io.IOException
-import java.net.URI
 
+import com.ning.http.client.Request
 import com.ning.http.client.websocket.{ WebSocketListener, WebSocketUpgradeHandler }
 import com.typesafe.scalalogging.slf4j.Logging
 
@@ -29,7 +29,7 @@ import io.gatling.http.ahc.HttpClient
 
 trait WebSocketClient {
 	@throws(classOf[IOException])
-	def open(uri: URI, listener: WebSocketListener)
+	def open(request: Request, listener: WebSocketListener)
 }
 
 trait RequestLogger {
@@ -38,8 +38,8 @@ trait RequestLogger {
 
 /** The default AsyncHttpClient WebSocket client. */
 object DefaultWebSocketClient extends WebSocketClient with Logging {
-	def open(uri: URI, listener: WebSocketListener) {
-		HttpClient.default.prepareGet(uri.toString).execute(
+	def open(request: Request, listener: WebSocketListener) {
+		HttpClient.default.prepareRequest(request).execute(
 			new WebSocketUpgradeHandler.Builder().addWebSocketListener(listener).build())
 	}
 }

@@ -17,8 +17,8 @@
 package io.gatling.http.action
 
 import java.io.IOException
-import java.net.URI
 
+import com.ning.http.client.Request
 import com.ning.http.client.websocket.{ WebSocket, WebSocketTextListener }
 
 import akka.actor.{ ActorRef, Props }
@@ -26,13 +26,15 @@ import io.gatling.core.action.{ Action, BaseActor, Chainable, Failable, Interrup
 import io.gatling.core.result.message.{ KO, OK }
 import io.gatling.core.session.{ Expression, Session }
 import io.gatling.core.util.TimeHelper.nowMillis
+import io.gatling.http.ahc.RequestFactory
 import io.gatling.http.config.HttpProtocol
+import io.gatling.http.referer.RefererHandling
 import io.gatling.http.util.{ RequestLogger, WebSocketClient }
 
 private[http] class OpenWebSocketAction(
 	actionName: Expression[String],
 	attributeName: String,
-	url: Expression[String],
+	requestFactory: RequestFactory,
 	webSocketClient: WebSocketClient,
 	requestLogger: RequestLogger,
 	val next: ActorRef,
@@ -40,19 +42,19 @@ private[http] class OpenWebSocketAction(
 
 	def executeOrFail(session: Session) = {
 
-		def open(actionName: String, url: String) = {
-			logger.info(s"Opening websocket '$attributeName': Scenario '${session.scenarioName}', UserId #${session.userId}")
+		def open(resolvedActionName: String, request: Request, newSession: Session) = {
+			logger.info(s"Opening websocket '$attributeName': Scenario '${newSession.scenarioName}', UserId #${newSession.userId}")
 
 			val actor = context.actorOf(Props(new WebSocketActor(attributeName, requestLogger)))
 
 			val started = nowMillis
 			try {
-				webSocketClient.open(URI.create(url), new WebSocketTextListener {
+				webSocketClient.open(request, new WebSocketTextListener {
 					var opened = false
 
 					def onOpen(webSocket: WebSocket) {
 						opened = true
-						actor ! OnOpen(actionName, webSocket, started, nowMillis, next, session)
+						actor ! OnOpen(resolvedActionName, webSocket, started, nowMillis, next, newSession)
 					}
 
 					def onMessage(message: String) {
@@ -67,7 +69,7 @@ private[http] class OpenWebSocketAction(
 							opened = false
 							actor ! OnClose
 						} else {
-							actor ! OnFailedOpen(actionName, "closed", started, nowMillis, next, session)
+							actor ! OnFailedOpen(resolvedActionName, "closed", started, nowMillis, next, newSession)
 						}
 					}
 
@@ -75,20 +77,21 @@ private[http] class OpenWebSocketAction(
 						if (opened) {
 							actor ! OnError(t)
 						} else {
-							actor ! OnFailedOpen(actionName, t.getMessage, started, nowMillis, next, session)
+							actor ! OnFailedOpen(resolvedActionName, t.getMessage, started, nowMillis, next, newSession)
 						}
 					}
 				})
 			} catch {
 				case e: IOException =>
-					actor ! OnFailedOpen(actionName, e.getMessage, started, nowMillis, next, session)
+					actor ! OnFailedOpen(resolvedActionName, e.getMessage, started, nowMillis, next, newSession)
 			}
 		}
 
 		for {
-			actionName <- actionName(session)
-			url <- url(session)
-		} yield open(actionName, url)
+			resolvedActionName <- actionName(session)
+			request <- requestFactory(session, protocol)
+			newSession = RefererHandling.storeReferer(request, session, protocol)
+		} yield open(resolvedActionName, request, newSession)
 	}
 }
 
@@ -125,10 +128,10 @@ private[http] class WebSocketActor(val attributeName: String, requestLogger: Req
 	private[this] var webSocket: Option[WebSocket] = None
 
 	def receive = {
-		case OnOpen(actionName, webSocket, started, ended, next, session) =>
+		case OnOpen(actionName, openedWebSocket, started, ended, next, session) =>
 			requestLogger.logRequest(session, actionName, OK, started, ended)
-			this.webSocket = Some(webSocket)
-			next ! session.set(attributeName, (self, webSocket))
+			webSocket = Some(openedWebSocket)
+			next ! session.set(attributeName, (self, openedWebSocket))
 
 		case OnFailedOpen(actionName, message, started, ended, next, session) =>
 			logger.warn(s"Websocket '$attributeName' failed to open: $message")

@@ -21,14 +21,23 @@ import akka.actor.ActorRef
 import io.gatling.core.action.builder.ActionBuilder
 import io.gatling.core.config.ProtocolRegistry
 import io.gatling.core.session.Expression
+import io.gatling.http.ahc.RequestFactory
 import io.gatling.http.config.HttpProtocol
+import io.gatling.http.request.builder.OpenWebSocketBuilder
 import io.gatling.http.util.{ RequestLogger, WebSocketClient }
 
-class OpenWebSocketActionBuilder(actionName: Expression[String], attributeName: String, fUrl: Expression[String], webSocketClient: WebSocketClient, requestLogger: RequestLogger) extends ActionBuilder {
+object OpenWebSocketActionBuilder {
 
+	def apply(requestBuilder: OpenWebSocketBuilder): OpenWebSocketActionBuilder = {
+		import requestBuilder._
+		new OpenWebSocketActionBuilder(httpAttributes.requestName, attributeName, build, webSocketClient, requestLogger)
+	}
+}
+
+class OpenWebSocketActionBuilder(actionName: Expression[String], attributeName: String, requestFactory: RequestFactory, webSocketClient: WebSocketClient, requestLogger: RequestLogger) extends ActionBuilder {
 	def build(next: ActorRef, protocolRegistry: ProtocolRegistry): ActorRef = {
 		val httpProtocol = protocolRegistry.getProtocol(HttpProtocol.default)
-		actor(new OpenWebSocketAction(actionName, attributeName, fUrl, webSocketClient, requestLogger, next, httpProtocol))
+		actor(new OpenWebSocketAction(actionName, attributeName, requestFactory, webSocketClient, requestLogger, next, httpProtocol))
 	}
 }
 

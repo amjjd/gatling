@@ -17,7 +17,6 @@
 package io.gatling.http.action
 
 import java.io.IOException
-import java.net.URI
 
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatcher
@@ -30,6 +29,7 @@ import org.specs2.mutable.Specification
 import org.specs2.runner.JUnitRunner
 import org.specs2.specification.{ AllExpectations, Scope }
 
+import com.ning.http.client.Request
 import com.ning.http.client.websocket.{ WebSocket, WebSocketListener }
 
 import akka.actor.{ Actor, Props }
@@ -63,7 +63,7 @@ class WebSocketActorSpec extends Specification with AllExpectations with Mockito
 		}
 
 		"record a failed open and advance" in new scope {
-			open(mock[WebSocketClient].open(any[URI], any[WebSocketListener]) throws new IOException("testErrorMessage"))
+			open(mock[WebSocketClient].open(any[Request], any[WebSocketListener]) throws new IOException("testErrorMessage"))
 
 			there was one(requestLogger).logRequest(any[Session], anyString, isEq(KO), anyLong, anyLong, anArgThat(contains("testErrorMessage")))
 			next.underlyingActor.session.map(_.contains("testAttributeName")) mustEqual Some(false)
@@ -153,15 +153,17 @@ class WebSocketActorSpec extends Specification with AllExpectations with Mockito
 		var next: TestActorRef[DummyAction] = _
 
 		def webSocketClient(open: (WebSocketListener) => Unit) = {
-			mock[WebSocketClient].open(any[URI], any[WebSocketListener]) answers { (params, _) =>
+			mock[WebSocketClient].open(any[Request], any[WebSocketListener]) answers { (params, _) =>
 				open(params.asInstanceOf[Array[_]](1).asInstanceOf[WebSocketListener])
 			}
 		}
 
 		def open(webSocketClient: WebSocketClient) {
+			import io.gatling.http.Predef._
+
 			next = TestActorRef[DummyAction](Props(new DummyAction))(system)
-			val action = websocket("testRequestName")
-				.open("ws://dummy/", "testAttributeName")(webSocketClient, requestLogger)
+			val action = openWebSocketBuilder2ActionBuilder(websocket("testRequestName")
+				.open("ws://dummy/", "testAttributeName")(webSocketClient, requestLogger))
 				.build(next, ProtocolRegistry(Nil))
 
 			action ! new Session("test", "0")

@@ -32,7 +32,7 @@ class WebSocketBaseBuilder(val actionName: Expression[String]) {
 	 * @param fUrl The socket URL
 	 * @param attributeName The name of the session attribute used to store the socket
 	 */
-	def open(fUrl: Expression[String], attributeName: String = DEFAULT_ATTRIBUTE_NAME)(implicit webSocketClient: WebSocketClient, requestLogger: RequestLogger) = new OpenWebSocketActionBuilder(actionName, attributeName, fUrl, webSocketClient, requestLogger)
+	def open(fUrl: Expression[String], attributeName: String = DEFAULT_ATTRIBUTE_NAME)(implicit webSocketClient: WebSocketClient, requestLogger: RequestLogger) = OpenWebSocketBuilder(actionName, attributeName, fUrl, webSocketClient, requestLogger)
 
 	/**
 	 * Sends a message on the given socket.

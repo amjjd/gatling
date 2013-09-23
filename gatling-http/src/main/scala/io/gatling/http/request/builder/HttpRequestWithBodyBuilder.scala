@@ -40,7 +40,7 @@ object AbstractHttpRequestWithBodyBuilder {
 abstract class AbstractHttpRequestWithBodyBuilder[B <: AbstractHttpRequestWithBodyBuilder[B]](
 	httpAttributes: HttpAttributes,
 	bodyAttributes: BodyAttributes)
-	extends AbstractHttpRequestBuilder[B](httpAttributes) {
+	extends AbstractHttpRequestWithChecksBuilder[B](httpAttributes) {
 
 	private[http] def newInstance(
 		httpAttributes: HttpAttributes,

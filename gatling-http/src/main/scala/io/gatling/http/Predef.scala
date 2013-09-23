@@ -17,7 +17,7 @@ package io.gatling.http
 
 import io.gatling.core.result.message.{ KO, Status }
 import io.gatling.core.session.{ Expression, Session }
-import io.gatling.http.action.{ AddCookiesBuilder, HttpRequestActionBuilder }
+import io.gatling.http.action.{ AddCookiesBuilder, HttpRequestActionBuilder, OpenWebSocketActionBuilder }
 import io.gatling.http.check.body.{ HttpBodyCssCheckBuilder, HttpBodyJsonPathCheckBuilder, HttpBodyRegexCheckBuilder, HttpBodyStringCheckBuilder, HttpBodyXPathCheckBuilder }
 import io.gatling.http.check.checksum.HttpChecksumCheckBuilder
 import io.gatling.http.check.header.{ HttpHeaderCheckBuilder, HttpHeaderRegexCheckBuilder }
@@ -26,7 +26,7 @@ import io.gatling.http.check.time.HttpResponseTimeCheckBuilder
 import io.gatling.http.check.url.CurrentLocationCheckBuilder
 import io.gatling.http.config.{ HttpProtocol, HttpProtocolBuilder, HttpProxyBuilder }
 import io.gatling.http.request.BodyProcessors
-import io.gatling.http.request.builder.{ AbstractHttpRequestBuilder, HttpRequestBaseBuilder, WebSocketBaseBuilder }
+import io.gatling.http.request.builder.{ AbstractHttpRequestWithChecksBuilder, HttpRequestBaseBuilder, OpenWebSocketBuilder, WebSocketBaseBuilder }
 import io.gatling.http.util.{ DefaultRequestLogger, DefaultWebSocketClient }
 
 object Predef {
@@ -37,7 +37,7 @@ object Predef {
 	implicit def proxyBuilder2HttpProtocolBuilder(hpb: HttpProxyBuilder): HttpProtocolBuilder = hpb.toHttpProtocolBuilder
 	implicit def proxyBuilder2HttpProtocol(hpb: HttpProxyBuilder): HttpProtocol = hpb.toHttpProtocolBuilder.build
 	implicit def httpProtocolBuilder2HttpProtocol(builder: HttpProtocolBuilder): HttpProtocol = builder.build
-	implicit def requestBuilder2ActionBuilder(requestBuilder: AbstractHttpRequestBuilder[_]) = HttpRequestActionBuilder(requestBuilder)
+	implicit def requestWithChecksBuilder2ActionBuilder(requestBuilder: AbstractHttpRequestWithChecksBuilder[_]) = HttpRequestActionBuilder(requestBuilder)
 
 	def http(requestName: Expression[String]) = HttpRequestBaseBuilder.http(requestName)
 	def addCookies(url: Expression[String], cookie: Cookie, cookies: Cookie*) = AddCookiesBuilder(url, cookie :: cookies.toList)
@@ -84,6 +84,8 @@ object Predef {
 	def FileBodyPart = io.gatling.http.request.FileBodyPart
 	def RawFileBodyPart = io.gatling.http.request.RawFileBodyPart
 	def ELFileBodyPart = io.gatling.http.request.ELFileBodyPart
+
+	implicit def openWebSocketBuilder2ActionBuilder(openWebSocketBuilder: OpenWebSocketBuilder): OpenWebSocketActionBuilder = OpenWebSocketActionBuilder(openWebSocketBuilder)
 
 	def websocket(actionName: Expression[String]) = WebSocketBaseBuilder.websocket(actionName)
 	implicit val defaultWebSocketClient = DefaultWebSocketClient

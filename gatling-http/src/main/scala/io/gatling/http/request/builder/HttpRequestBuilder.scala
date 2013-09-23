@@ -75,18 +75,6 @@ abstract class AbstractHttpRequestBuilder[B <: AbstractHttpRequestBuilder[B]](va
 	private[http] def newInstance(httpAttributes: HttpAttributes): B
 
 	/**
-	 * Stops defining the request and adds checks on the response
-	 *
-	 * @param checks the checks that will be performed on the response
-	 */
-	def check(checks: HttpCheck*): B = newInstance(httpAttributes.copy(checks = httpAttributes.checks ::: checks.toList))
-
-	/**
-	 * Ignore the default checks configured on HttpProtocol
-	 */
-	def ignoreDefaultChecks: B = newInstance(httpAttributes.copy(ignoreDefaultChecks = true))
-
-	/**
 	 * Adds a query parameter to the request
 	 *
 	 * @param param is a query parameter
@@ -147,11 +135,6 @@ abstract class AbstractHttpRequestBuilder[B <: AbstractHttpRequestBuilder[B]](va
 
 	def address(address: InetAddress): B = newInstance(httpAttributes.copy(address = Some(address)))
 
-	/**
-	 * @param responseTransformer transforms the response before it's handled to the checks pipeline
-	 */
-	def transformResponse(responseTransformer: ResponseTransformer): B = newInstance(httpAttributes.copy(responseTransformer = Some(responseTransformer)))
-
 	def maxRedirects(max: Int): B = newInstance(httpAttributes.copy(maxRedirects = Some(max)))
 
 	/**
@@ -161,15 +144,16 @@ abstract class AbstractHttpRequestBuilder[B <: AbstractHttpRequestBuilder[B]](va
 	 */
 	protected def getAHCRequestBuilder(session: Session, protocol: HttpProtocol): Validation[RequestBuilder] = {
 
+		def AbsolutePrefixes = Seq(Protocol.HTTP.getProtocol, Protocol.HTTPS.getProtocol, "ws", "wss").map(_ + "://")
 		def makeAbsolute(url: String): Validation[String] =
-			if (url.startsWith(Protocol.HTTP.getProtocol))
+			if (AbsolutePrefixes.exists(url.startsWith))
 				url.success
 			else
 				protocol.baseURL.map(baseURL => (baseURL + url).success).getOrElse(s"No protocol.baseURL defined but provided url is relative : $url".failure)
 
 		def configureQueryCookiesAndProxy(url: String)(implicit requestBuilder: RequestBuilder): Validation[RequestBuilder] = {
 
-			val proxy = if (url.startsWith(Protocol.HTTPS.getProtocol)) protocol.securedProxy else protocol.proxy
+			val proxy = if (url.startsWith(Protocol.HTTPS.getProtocol) || url.startsWith("wss")) protocol.securedProxy else protocol.proxy
 			proxy.foreach(requestBuilder.setProxyServer)
 
 			protocol.localAddress.foreach(requestBuilder.setLocalInetAddress)
@@ -235,12 +219,36 @@ abstract class AbstractHttpRequestBuilder[B <: AbstractHttpRequestBuilder[B]](va
 	def build: RequestFactory = (session: Session, protocol: HttpProtocol) => getAHCRequestBuilder(session, protocol).map(_.build)
 }
 
+/**
+ * Adds checks to [[io.gatling.http.request.builder.AbstractHttpRequestBuilder]].
+ *
+ * @param httpAttributes the base HTTP attributes
+ */
+abstract class AbstractHttpRequestWithChecksBuilder[B <: AbstractHttpRequestWithChecksBuilder[B]](httpAttributes: HttpAttributes) extends AbstractHttpRequestBuilder[B](httpAttributes) {
+	/**
+	 * Stops defining the request and adds checks on the response
+	 *
+	 * @param checks the checks that will be performed on the response
+	 */
+	def check(checks: HttpCheck*): B = newInstance(httpAttributes.copy(checks = httpAttributes.checks ::: checks.toList))
+
+	/**
+	 * Ignore the default checks configured on HttpProtocol
+	 */
+	def ignoreDefaultChecks: B = newInstance(httpAttributes.copy(ignoreDefaultChecks = true))
+
+	/**
+	 * @param responseTransformer transforms the response before it's handled to the checks pipeline
+	 */
+	def transformResponse(responseTransformer: ResponseTransformer): B = newInstance(httpAttributes.copy(responseTransformer = Some(responseTransformer)))
+}
+
 object HttpRequestBuilder {
 
 	def apply(method: String, requestName: Expression[String], url: Expression[String]) = new HttpRequestBuilder(HttpAttributes(requestName, method, url))
 }
 
-class HttpRequestBuilder(httpAttributes: HttpAttributes) extends AbstractHttpRequestBuilder[HttpRequestBuilder](httpAttributes) {
+class HttpRequestBuilder(httpAttributes: HttpAttributes) extends AbstractHttpRequestWithChecksBuilder[HttpRequestBuilder](httpAttributes) {
 
 	private[http] def newInstance(httpAttributes: HttpAttributes) = new HttpRequestBuilder(httpAttributes)
 }
